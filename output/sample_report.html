@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Execution Report</title>
+</head>
+<body>
+    <table>
+        <tr>
+            <th>Test Case</th>
+            <th>Status</th>
+            <th>Details</th>
+        </tr>
+        <tr class="scenario">
+            <td>Login with valid credentials</td>
+            <td class="status">Passed</td>
+            <td></td>
+        </tr>
+        <tr class="scenario">
+            <td>Verify product count</td>
+            <td class="status">Failed</td>
+            <td class="error">AssertionError: Expected product count to be 5 but was 3</td>
+        </tr>
+        <tr class="scenario">
+            <td>Check product price</td>
+            <td class="status">Failed</td>
+            <td class="error">assert 49.99 == 39.99, Product price should have been $49.99</td>
+        </tr>
+        <tr class="scenario">
+            <td>Verify cart total</td>
+            <td class="status">Failed</td>
+            <td class="error">AssertionError: Cart total is not equal to sum of items. Expected: 150.00, Actual: 145.00</td>
+        </tr>
+        <tr class="scenario">
+            <td>Add item to cart</td>
+            <td class="status">Failed</td>
+            <td class="error">NoSuchElementException: Unable to locate element with ID 'add-to-cart-button'</td>
+        </tr>
+        <tr class="scenario">
+            <td>Submit order with payment</td>
+            <td class="status">Success</td>
+            <td></td>
+        </tr>
+        <tr class="scenario">
+            <td>Check stock level</td>
+            <td class="status">Failed</td>
+            <td class="error">Stock level should be greater than 0 but was -1</td>
+        </tr>
+        <tr class="scenario">
+            <td>Verify shipping address</td>
+            <td class="status">Failed</td>
+            <td class="error">Address validation failed: Expected ZIP code to match pattern \d{5}</td>
+        </tr>
+        <tr class="scenario">
+            <td>Check order history</td>
+            <td class="status">Error</td>
+            <td class="error">TimeoutException: Element not interactable after waiting 10 seconds</td>
+        </tr>
+        <tr class="scenario">
+            <td>Calculate discount</td>
+            <td class="status">Failed</td>
+            <td class="error">The actual discount (15%) is not matching expected value (20%)</td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -1,6 +1,5 @@
-streamlit==1.48.1
-pandas==2.3.2
-openpyxl==3.1.5
-ollama==0.5.3
-matplotlib==3.10.5
-behavex==4.5.1
+streamlit==1.28.0
+pandas==2.1.2
+beautifulsoup4==4.12.2
+matplotlib==3.8.1
+openpyxl==3.1.2
