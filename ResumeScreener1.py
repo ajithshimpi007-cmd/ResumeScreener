@@ -9,7 +9,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import io
 import matplotlib.pyplot as plt
-from rapidfuzz import fuzz
 
 # Download the English language model
 try:
@@ -68,97 +67,43 @@ def calculate_similarity(text1, text2):
     return cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
 
 def extract_skills(text):
-    """Extract potential skills from text using spaCy noun-chunks and phrase matcher against a curated skill list."""
-    text_lower = text.lower()
-    doc = nlp(text_lower)
-
-    # Base skills from noun chunks and nouns/proper nouns
+    """Extract potential skills from text"""
+    doc = nlp(text.lower())
+    # Add common technical skills patterns
     skills = set()
+    
+    # Extract noun phrases and proper nouns as potential skills
     for chunk in doc.noun_chunks:
-        skills.add(chunk.text.strip())
+        skills.add(chunk.text)
+    
+    # Add individual tokens that might be skills
     for token in doc:
         if token.pos_ in ['NOUN', 'PROPN']:
-            skills.add(token.text.strip())
-
-    # Also match against curated skill list using PhraseMatcher for accuracy (multi-word skills)
-    curated = get_curated_skills()
-    from spacy.matcher import PhraseMatcher
-    matcher = PhraseMatcher(nlp.vocab, attr='LOWER')
-    patterns = [nlp.make_doc(s) for s in curated]
-    matcher.add('SKILLS', patterns)
-    matches = matcher(doc)
-    for _, start, end in matches:
-        span = doc[start:end].text
-        skills.add(span.strip())
-
-    # Normalize skills: lowercase and strip
-    norm = set(s.lower() for s in skills if s and len(s) > 1)
-
-    # Fuzzy-match candidates against curated list to catch near-misses
-    curated = get_curated_skills()
-    candidates = set()
-    for chunk in doc.noun_chunks:
-        candidates.add(chunk.text.strip())
-    for token in doc:
-        if token.pos_ in ['NOUN', 'PROPN']:
-            candidates.add(token.text.strip())
-
-    for cand in candidates:
-        cand_low = cand.lower()
-        for skill in curated:
-            score = fuzz.token_sort_ratio(cand_low, skill.lower())
-            if score >= 85:
-                norm.add(skill.lower())
-
-    return norm
-
-def get_curated_skills():
-    """Return a curated list of common skills and multi-word phrases for better matching."""
-    return [
-        'python', 'java', 'c++', 'c#', 'javascript', 'typescript', 'react', 'angular', 'vue',
-        'django', 'flask', 'spring', 'sql', 'mysql', 'postgresql', 'mongodb', 'nosql',
-        'aws', 'azure', 'google cloud', 'gcp', 'docker', 'kubernetes', 'ci/cd', 'git',
-        'machine learning', 'deep learning', 'nlp', 'natural language processing', 'pytorch', 'tensorflow',
-        'data analysis', 'data engineering', 'pandas', 'numpy', 'scipy', 'spark', 'hadoop',
-        'rest api', 'graphql', 'microservices', 'communication', 'leadership', 'problem solving'
-    ]
+            skills.add(token.text)
+            
+    return skills
 
 def score_resume(resume_text, jd_text):
     """Score a resume against a job description"""
-    # Preprocess texts (kept for optional overall similarity)
+    # Preprocess texts
     processed_resume = preprocess_text(resume_text)
     processed_jd = preprocess_text(jd_text)
-
-    # Calculate overall similarity (kept as additional signal)
-    try:
-        similarity_score = calculate_similarity(processed_resume, processed_jd) * 100
-    except Exception:
-        similarity_score = 0.0
-
-    # Extract skills using extractor
-    resume_skills = set(extract_skills(resume_text))
-    jd_skills = set(extract_skills(jd_text))
-
-    # Matched = only JD skills that are present in the resume
-    matching_skills = sorted(list(jd_skills.intersection(resume_skills)))
-
-    # Extra skills = resume skills that are NOT in JD
-    extra_skills = sorted(list(resume_skills.difference(jd_skills)))
-
-    jd_count = len(jd_skills)
-    matched_count = len(matching_skills)
-
-    # If JD has skills, skill match is fraction of JD skills covered by resume
-    skills_score = (matched_count / jd_count * 100) if jd_count > 0 else 0.0
-
+    
+    # Calculate overall similarity
+    similarity_score = calculate_similarity(processed_resume, processed_jd)
+    
+    # Extract skills
+    resume_skills = extract_skills(resume_text)
+    jd_skills = extract_skills(jd_text)
+    
+    # Calculate skills match
+    matching_skills = resume_skills.intersection(jd_skills)
+    skills_score = len(matching_skills) / len(jd_skills) if jd_skills else 0
+    
     return {
-        'similarity_score': round(similarity_score, 2),
-        'skills_score': round(skills_score, 2),
-        'matching_skills': matching_skills,
-        'extra_skills': extra_skills,
-        'matched_count': matched_count,
-        'jd_skill_count': jd_count,
-        'extra_count': len(extra_skills)
+        'similarity_score': similarity_score * 100,
+        'skills_score': skills_score * 100,
+        'matching_skills': list(matching_skills)
     }
     soup = BeautifulSoup(html_file, "html.parser")
     scenarios = []
@@ -423,31 +368,20 @@ def color_score(score):
 st.subheader("Step 1: Enter Job Description")
 jd_text = st.text_area("Enter the job description", height=200)
 
-# Resume Upload — one browse field under each resume section
-st.subheader("Step 2: Upload up to 10 Resumes (one upload per resume section)")
-st.markdown("Upload each candidate resume under its section. Leave unused sections empty.")
-
-uploaders = []
-for i in range(10):
-    st.markdown(f"### Resume {i+1}")
-    f = st.file_uploader(f"Browse file for Resume {i+1}", type=["pdf", "docx"], key=f"resume_{i+1}")
-    uploaders.append(f)
+# Resume Upload
+st.subheader("Step 2: Upload Resumes")
+uploaded_files = st.file_uploader("Upload resumes", type=["pdf", "docx"], accept_multiple_files=True)
 
 # Analyze button
 analyze_clicked = st.button("🔍 Analyze Resumes")
 
-if jd_text and analyze_clicked:
+if jd_text and uploaded_files and analyze_clicked:
     st.info("⏳ Analyzing resumes...")
-    # Collect files from the 10 separate uploaders
-    files_to_process = [f for f in uploaders if f is not None]
-    if not files_to_process:
-        st.warning("Please upload at least one resume (up to 10) before analyzing.")
-        st.stop()
     
     try:
         results = []
         
-        for file in files_to_process:
+        for file in uploaded_files:
             # Extract text based on file type
             if file.name.lower().endswith('.pdf'):
                 text = extract_text_from_pdf(file)
@@ -455,28 +389,15 @@ if jd_text and analyze_clicked:
                 text = extract_text_from_docx(file)
             else:
                 continue
-
+                
             # Score the resume
             scores = score_resume(text, jd_text)
-
-            # Use the scoring output (skills are normalized inside score_resume)
-            resume_skills = set(extract_skills(text))
-            jd_skills = set(extract_skills(jd_text))
-
-            matching = set(scores.get('matching_skills', []))
-            extra = set(scores.get('extra_skills', []))
-
+            
             results.append({
                 'Resume': file.name,
-                'Overall Match (%)': round(scores.get('similarity_score', 0.0), 2),
-                'Skills Match (%)': round(scores.get('skills_score', 0.0), 2),
-                'Matching Skills': ', '.join(sorted(matching)),
-                'Resume Skills': ', '.join(sorted(resume_skills)),
-                'JD Skills': ', '.join(sorted(jd_skills)),
-                'Matched Count': scores.get('matched_count', len(matching)),
-                'JD Skill Count': scores.get('jd_skill_count', len(jd_skills)),
-                'Extra Skills Count': scores.get('extra_count', len(extra)),
-                'Extra Skills': ', '.join(sorted(extra))
+                'Overall Match (%)': round(scores['similarity_score'], 2),
+                'Skills Match (%)': round(scores['skills_score'], 2),
+                'Matching Skills': ', '.join(scores['matching_skills']),
             })
             
         if results:
@@ -497,84 +418,32 @@ if jd_text and analyze_clicked:
             
             # Display results
             st.success("✅ Analysis complete!")
-
+            
             # Show results overview
             st.subheader("Resume Analysis Results")
             st.dataframe(styled_df)
-
-            # CSV export
-            csv = df.to_csv(index=False)
-            st.download_button(label="Download results as CSV", data=csv, file_name='resume_screening_results.csv', mime='text/csv')
             
             # Visualization
-            st.subheader("Skills Match Visualizations")
-
-            # Build per-resume matched/unmatched data
-            jd_skill_counts = df['JD Skill Count'].tolist()
-            matched_counts = df['Matched Count'].tolist()
-            extra_counts = df['Extra Skills Count'].tolist()
-            resumes = df['Resume'].tolist()
-
-            # Per-resume pie charts: matched vs unmatched skills (based on JD skills)
-            cols = st.columns(min(3, len(resumes)))
-            for i, resume in enumerate(resumes):
-                matched = matched_counts[i]
-                jd_total = jd_skill_counts[i] if jd_skill_counts[i] > 0 else 0
-                unmatched = jd_total - matched if jd_total > 0 else 0
-
-                # Avoid division by zero
-                if jd_total == 0:
-                    with cols[i % len(cols)]:
-                        st.write(f"{resume}")
-                        st.info("No skills detected in JD to compute matched/unmatched skills pie.")
-                    continue
-
-                with cols[i % len(cols)]:
-                    st.write(f"{resume}")
-                    fig1, ax1 = plt.subplots(figsize=(4, 4))
-                    sizes = [matched, unmatched]
-                    labels = [f"Matched ({matched})", f"Unmatched ({unmatched})"]
-                    colors = ['#4CAF50', '#FF6347']
-                    ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-                    ax1.axis('equal')
-                    st.pyplot(fig1)
-
-            # Bar chart comparing matched % and extra skills across resumes
-            st.subheader("Matched / Unmatched / Extra Skills Comparison")
-            matched_pct = [ (m / jd_total * 100) if jd_total>0 else 0 for m, jd_total in zip(matched_counts, jd_skill_counts) ]
-            unmatched_pct = [ ( (jd - m) / jd * 100) if jd>0 else 0 for m, jd in zip(matched_counts, jd_skill_counts) ]
-
-            fig2, ax2 = plt.subplots(figsize=(10, 6))
-            x = np.arange(len(resumes))
-            width = 0.25
-            ax2.bar(x - width, matched_pct, width, label='Matched %', color='#4CAF50')
-            ax2.bar(x, unmatched_pct, width, label='Unmatched %', color='#FF6347')
-            ax2.bar(x + width, extra_counts, width, label='Extra Skills (count)', color='#2196F3')
-            ax2.set_ylabel('Percentage / Count')
-            ax2.set_title('Skills Match Comparison Across Resumes')
-            ax2.set_xticks(x)
-            ax2.set_xticklabels(resumes, rotation=45, ha='right')
-            ax2.legend()
+            st.subheader("Score Distribution")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Create bar chart
+            x = range(len(df))
+            width = 0.35
+            
+            ax.bar([i - width/2 for i in x], df['Overall Match (%)'], 
+                  width, label='Overall Match', color='skyblue')
+            ax.bar([i + width/2 for i in x], df['Skills Match (%)'], 
+                  width, label='Skills Match', color='lightgreen')
+            
+            ax.set_ylabel('Score (%)')
+            ax.set_title('Resume Scores Comparison')
+            ax.set_xticks(x)
+            ax.set_xticklabels(df['Resume'], rotation=45, ha='right')
+            ax.legend()
+            
             plt.tight_layout()
-            st.pyplot(fig2)
-
-            # Overall pie: across all JD skills, how many were matched at least once
-            total_jd_skills = set()
-            total_matched = set()
-            for idx, row in df.iterrows():
-                jd_set = set([s.strip().lower() for s in str(row['JD Skills']).split(',') if s.strip()])
-                resume_set = set([s.strip().lower() for s in str(row['Resume Skills']).split(',') if s.strip()])
-                total_jd_skills.update(jd_set)
-                total_matched.update(jd_set.intersection(resume_set))
-
-            if total_jd_skills:
-                matched_overall = len(total_matched)
-                unmatched_overall = len(total_jd_skills) - matched_overall
-                fig3, ax3 = plt.subplots(figsize=(6, 6))
-                ax3.pie([matched_overall, unmatched_overall], labels=[f'Matched ({matched_overall})', f'Unmatched ({unmatched_overall})'], colors=['#4CAF50', '#FF6347'], autopct='%1.1f%%', startangle=90)
-                ax3.axis('equal')
-                st.subheader('Overall JD Skill Coverage')
-                st.pyplot(fig3)
+            st.pyplot(fig)
             
             # Detailed Analysis for each resume
             st.subheader("Detailed Analysis")
