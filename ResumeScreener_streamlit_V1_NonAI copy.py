@@ -193,11 +193,15 @@ if st.button("Screen Resumes"):
         # Build overall summary dataframe and provide download as Excel
         summary_rows = []
         for i, name in enumerate(resume_names):
+            status = "SELECTED" if match_percents[i] >= 80 else "NOT SELECTED"
             summary_rows.append({
                 'Resume': name,
                 'Matched Count': matched_counts[i],
+                'Matched Words': matched_skills_list[i],
                 'Unmatched Count': unmatched_counts[i],
-                'Match %': match_percents[i]
+                'Unmatched Words': unmatched_skills_list[i],
+                'Match %': match_percents[i],
+                'STATUS': status
             })
         summary_df = pd.DataFrame(summary_rows)
         # Add aggregate totals
