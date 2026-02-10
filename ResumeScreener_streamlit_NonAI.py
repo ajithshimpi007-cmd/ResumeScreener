@@ -83,11 +83,20 @@ job_desc = st.text_area("Enter Job Description (type skills or description)", ""
 # parse job skills as phrases (e.g. 'machine learning')
 job_skills = parse_job_skills(job_desc)
 
-uploaded_files = []
-for i in range(1, 11):
-    uploaded_file = st.file_uploader(f"Browse Resume {i}", type=["pdf", "docx", "txt"], key=f"resume_{i}")
-    if uploaded_file:
-        uploaded_files.append(uploaded_file)
+# match percentage threshold input
+match_threshold = st.number_input("Match Percentage Threshold (%)", min_value=0, max_value=100, value=80, step=5)
+
+# Upload multiple resumes at once (up to 10)
+uploaded_files = st.file_uploader(
+    "Browse and select up to 10 resumes",
+    type=["pdf", "docx", "txt"],
+    accept_multiple_files=True
+)
+
+# Limit to 10 files
+if len(uploaded_files) > 10:
+    st.warning("You selected more than 10 files. Only the first 10 will be processed.")
+    uploaded_files = uploaded_files[:10]
 
 if st.button("Screen Resumes"):
     if not job_skills:
@@ -193,7 +202,7 @@ if st.button("Screen Resumes"):
         # Build overall summary dataframe and provide download as Excel
         summary_rows = []
         for i, name in enumerate(resume_names):
-            status = "SELECTED" if match_percents[i] >= 80 else "NOT SELECTED"
+            status = "SELECTED" if match_percents[i] >= match_threshold else "NOT SELECTED"
             summary_rows.append({
                 'Resume': name,
                 'Matched Count': matched_counts[i],
